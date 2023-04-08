@@ -1,0 +1,12 @@
+'''Total Number of VLANs'''
+index="f5-afm" | stats count by VLAN |stats count
+
+'''Total Number of Destination IP'''
+index="f5-afm"  DestinationIP != Aggregated DestinationIP != N/A |stats count by DestinationIP |stats count
+
+'''Total Number of Source IP'''
+index="f5-afm"  SourceIP != Aggregated SourceIP != N/A |stats count by SourceIP |stats count
+
+'''Number of Source and Destination in each VLAN'''
+index="f5-afm"  VLAN != Aggregated  VLAN != N/A  SourceIP != Aggregated   SourceIP != N/A  DestinationIP != Aggregated   DestinationIP != N/A |stats dc(SourceIP) as SRC, dc(DestinationIP) as DST by VLAN
+
