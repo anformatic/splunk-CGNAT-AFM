@@ -10,3 +10,62 @@ index="f5-afm"  SourceIP != Aggregated SourceIP != N/A |stats count by SourceIP 
 '''Number of Source and Destination in each VLAN'''
 index="f5-afm"  VLAN != Aggregated  VLAN != N/A  SourceIP != Aggregated   SourceIP != N/A  DestinationIP != Aggregated   DestinationIP != N/A |stats dc(SourceIP) as SRC, dc(DestinationIP) as DST by VLAN
 
+'''EPS of AFM'''
+index="f5-afm"  | stats count as "Volume GB" by Hostname |  append extendtimerange=t [| tstats count where index="f5-afm" by _time index span=1s |  stats min(count) AS "min EPS", avg(count) AS "avg EPS", max(count) AS "max EPS", sum(count) AS "sum evts", perc95(count) AS "perc95 EPS" by index]
+| append extendtimerange=t [| tstats count where index="f5-afm"  by _time index span=1s | eval date_hour=strftime(_time, "%H") |  search date_hour>7 AND date_hour<19
+|   stats min(count) AS "min EPS WH", avg(count) AS "avg EPS WH", max(count) AS "max EPS WH", perc95(count) AS "perc95 EPS WH" by index]
+| stats first(*) as * by index
+|  eval "avg EPS" = round ( 'avg EPS', 2), "perc95 EPS" = round ('perc95 EPS',2),  "Volume GB" = round ('Volume GB',2) , "avg EPS WH" = round ( 'avg EPS WH', 2), "perc95 EPS WH" = round ('perc95 EPS WH',2), "sizeGB by evt"=('Volume GB'/'sum evts'), "sizeB by evt"=(('Volume GB'/'sum evts')*1024*1024*1024)
+|  table index, "Volume GB","sum evts","sizeGB by evt","sizeB by evt", "min EPS", "min EPS WH", "avg EPS","avg EPS WH", "perc95 EPS","perc95 EPS WH", "max EPS", "max EPS WH" |fields - "Volume GB","sizeGB by evt","sizeB by evt"
+
+'''Type of Actions'''
+index="f5-afm" |stats count by Action
+
+'''Type of Protocols'''
+index="f5-afm" |stats count by NetworkProtocol
+
+''' AFM Attack Categories'''
+index="f5-afm" AttackCategory !="" |stats count by AttackCategory | sort - count
+
+'''Mitigation Type of Attacks'''
+index="f5-afm"   |stats count by AttackMitigationName
+
+'''Timeline Attacks'''
+index="f5-afm"   AttackCategory != "" | timechart count by AttackCategory useother=0
+
+'''Flood Category'''
+index="f5-afm" AttackCategory=Flood |stats count by AttackVectorName |sort - count
+
+'''Top Attacks by Source IP'''
+index="f5-afm"  AttackCategory != "" AND AttackVectorName != "" AND SourceIP != N/A AND SourceIP != Aggregated | stats count(AttackVectorName) as Type_of_Attack by SourceIP |sort - Type_of_Attack |head 10
+
+'''Top Attacks by Destination IP'''
+index="f5-afm"  AttackCategory != "" AND AttackVectorName != "" AND DestinationIP != N/A AND DestinationIP != Aggregated | stats count(AttackVectorName) as Type_of_Attack by DestinationIP |sort - Type_of_Attack |head 10 | eval color_map = case(count>20, "red", count>10, "orange", count>0, "yellow")
+
+'''DNS Attacks'''
+index="f5-afm" "DNS *" AttackMitigationName != "Not attacked" | multireport   [ stats count by AttackVectorName ]   [ stats count by AttackVectorName AttackMitigationName ]   | sort AttackVectorName
+
+'''DNS Query Type'''
+index="f5-afm"  Entity=DNS_QueryName |stats count by QueryType , AttackVectorName | sort - count
+
+'''Top Attacks'''
+index="f5-afm"  | multireport   [ stats count by AttackVectorName ]   [ stats count by AttackVectorName TransactionOutcome ]   | sort - count
+
+'''Threat Country'''
+index="f5-afm" |stats count by CountryCode | lookup Country_Code.csv alpha-2 as CountryCode OUTPUT name |search name != null 
+|  fields + name count 
+| sort - count
+
+******** the file of Country_Code.csv can be found in file with same name here********
+
+'''Normal Traffic UDP Flood'''
+index="f5-afm"  AttackVectorName="UDP flood"| timechart span=1m count(_raw) as T | bucket _time span=1h | stats avg(T) as Total by _time
+
+'''Normal Traffic ARP Flood'''
+index="f5-afm"  AttackVectorName="ARP flood"| timechart span=1m count(_raw) as T | bucket _time span=1h | stats avg(T) as Total by _time
+
+'''the Norm Traffic of DoS Attack'''
+index="f5-afm"  Entity=DosVisibilityAttacks| timechart span=1m count(_raw) as T | bucket _time span=1h | stats avg(T) as Total by _time
+
+
+
